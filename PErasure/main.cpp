@@ -7,9 +7,17 @@
 //
 
 #include <iostream>
+#include <omp.h>
+#include <string>
+using namespace std;
 
 int main(int argc, const char * argv[]) {
     // insert code here...
-    std::cout << "Hello, World!\n";
+    #pragma omp parallel num_threads(3)
+    {
+        std::cout << "Hello, World!\n";
+    }
+    std::string s = std::to_string(omp_get_num_devices());
+    std::cout << s + "\n";
     return 0;
 }
