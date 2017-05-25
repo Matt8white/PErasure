@@ -48,14 +48,13 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <string>
 #include <gf_rand.h>
 #include "jerasure.h"
 #include "cauchy.h"
 
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
-static void usage(std::string s)
+static void usage(const char *s)
 {
     fprintf(stderr, "usage: cauchy_04 k m w seed - CRS coding example improving the matrix.\n");
     fprintf(stderr, "       \n");
@@ -82,18 +81,18 @@ static void usage(std::string s)
     fprintf(stderr, "                   jerasure_print_matrix()\n");
     fprintf(stderr, "                   jerasure_print_bitmatrix()\n");
     fprintf(stderr, "                   jerasure_get_stats()\n");
-    if (s.c_str() != NULL) fprintf(stderr, "%s\n", s.c_str());
+    if (s != NULL) fprintf(stderr, "%s\n", s);
     exit(1);
 }
 
-static void print_array(char **ptrs, int ndevices, int size, int packetsize, std::string label)
+static void print_array(char **ptrs, int ndevices, int size, int packetsize, const char *label)
 {
     int i, j, x;
     unsigned char *up;
     
     printf("<center><table border=3 cellpadding=3><tr><td></td>\n");
     
-    for (i = 0; i < ndevices; i++) printf("<td align=center>%s%x</td>\n", label.c_str(), i);
+    for (i = 0; i < ndevices; i++) printf("<td align=center>%s%x</td>\n", label, i);
     printf("</tr>\n");
     printf("<td align=right><pre>");
     for (j = 0; j < size/packetsize; j++) printf("Packet %d\n", j);
