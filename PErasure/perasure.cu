@@ -58,19 +58,19 @@ int main(int argc, char **argv){
 	}
    
 //    Creating matrix and BDM
+	seed = rand();
+	MOA_Seed(seed);
 	matrix = talloc(int, m*k);
 	for (i = 0; i < m; i++) {
 		for (j = 0; j < k; j++) {
-			n = i ^ ((1 << w) - 1 - j);
-			matrix[i*k+j] = (n == 0) ? 0 : galois_single_divide(1, n, w);
+			matrix[i*k+j] = galois_single_divide(1, i ^ (m + j), w);
 		}
 	}
 	
-	bitmatrix = jerasure_matrix_to_bitmatrix(m, k, w, matrix);
+	bitmatrix = jerasure_matrix_to_bitmatrix(k, m, w, matrix);
 	
 //    Generating fake random data
-	seed = rand();
-	MOA_Seed(seed);
+	dataTemp = talloc(char *, k);
 	data = talloc(char *, k);
 	for (i = 0; i < k; i++) {
 		data[i] = talloc(char, psize*w);
@@ -81,6 +81,7 @@ int main(int argc, char **argv){
 	for (i = 0; i < m; i++) {
 		coding[i] = talloc(char, psize*w);
 	}
+	
     jerasure_bitmatrix_encode(k, m, w, bitmatrix, data, coding, w*psize, psize);
     
     //	Allocating GPU memory   
@@ -92,7 +93,6 @@ int main(int argc, char **argv){
     
     numBytesData = k * sizeof(long);
     cudaMalloc(&dataDevice, numBytesData);
-    cudaMemcpy(dataDevice, data, numBytesData, cudaMemcpyHostToDevice);
     
     numBytesCoding = m * sizeof(long);
     cudaMalloc(&codingDevice, numBytesCoding);
@@ -105,14 +105,20 @@ int main(int argc, char **argv){
     
     for(i=0; i < round; i++){
 		// load data chunks
-		for(x=0; x < k; x++)
-			for(l=0; l < round ; l++)
-				dataTemp[x*psize + l] += data[x + l * n]
+		for(d=0; d < k; d++)
+			for(r=0; r < w; r++)
+				for(l=0; l < psize / round ; l++)
+					dataTemp[d][r*psize/round + l] += data[d][r*psize + l + i*psize/round]
+
+		cudaMemcpy(dataDevice, dataTemp, numBytesData, cudaMemcpyHostToDevice);
+		
 		for(j=0; j < m; j++)
-			smpe<<<dimGrid, dimBlock>>>(k, w, dataDevice, &codingDevice+(i * m), size, sizeof(long));
+			smpe<<<dimGrid, dimBlock>>>(k, w, dataDevice, &codingDevice+(m + i*round), size, sizeof(long));
 		// copy coding back to main memory
-		cudaMemcpy(coding, codingDevice, numBytesCoding, cudaMemcpyDeviceToHost);
-		cudaFree();
+		cudaMemcpy(codingTemp, codingDevice, numBytesCoding, cudaMemcpyDeviceToHost);
+		Extend_Coding_Device(codingTemp, coding, destId);
+		cudaFree(dataDevice);
+		cudaFree(codingDevice);
 	}
     
     return 0;
