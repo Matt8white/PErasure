@@ -17,6 +17,7 @@ int main(int argc, char **argv){
 	unsigned int m, k, w, i, j, seed, psize;
 	int *matrix;
 	int *bitmatrix;
+    clock_t start;
 	char **data, **coding;
     srand((unsigned int)time(NULL));
     
@@ -67,9 +68,9 @@ int main(int argc, char **argv){
 	for (i = 0; i < m; i++) {
 		coding[i] = talloc(char, psize*w);
 	}
-    long start = time(0);
+    start = clock();
     jerasure_bitmatrix_encode(k, m, w, bitmatrix, data, coding, w*psize, psize);
-    printf("Encoding Complete, time elapsed: %lds\n", time(0) - start);
+    printf("Encoding Complete, time elapsed: %.2fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
     printf("\n");
     
 //    Erasing m devices
@@ -95,8 +96,8 @@ int main(int argc, char **argv){
     printf("\n");
     
 //    Decoding from genuine devices
-    start = time(0);
+    start = clock();
     jerasure_bitmatrix_decode(k, m, w, bitmatrix, 0, random, data, coding, w*psize, psize);
-    printf("Devices recovered, time elapsed: %lds\n", time(0) - start);
+    printf("Devices recovered, time elapsed: %.2fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
     printf("\n");
 }
