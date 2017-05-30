@@ -12,10 +12,9 @@ using namespace std;
 
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
-
 int main(int argc, char **argv){
 	
-	unsigned int m, k, w, i, j, n, seed, psize;
+	unsigned int m, k, w, i, j, seed, psize;
 	int *matrix;
 	int *bitmatrix;
 	char **data, **coding;
@@ -47,18 +46,17 @@ int main(int argc, char **argv){
 	}
     
 //    Creating matrix and BDM
-	matrix = talloc(int, m*k);
-	for (i = 0; i < m; i++) {
-		for (j = 0; j < k; j++) {
-			n = i ^ ((1 << w) - 1 - j);
-			matrix[i*k+j] = (n == 0) ? 0 : galois_single_divide(1, n, w);
-		}
-	}
-    bitmatrix = jerasure_matrix_to_bitmatrix(m, k, w, matrix);
+    seed = rand();
+    MOA_Seed(seed);
+    matrix = talloc(int, m*k);
+    for (i = 0; i < m; i++) {
+        for (j = 0; j < k; j++) {
+            matrix[i*k+j] = galois_single_divide(1, i ^ (m + j), w);
+        }
+    }
+    bitmatrix = jerasure_matrix_to_bitmatrix(k, m, w, matrix);
 
 //    Generating fake random data
-	seed = rand();
-	MOA_Seed(seed);
 	data = talloc(char *, k);
 	for (i = 0; i < k; i++) {
 		data[i] = talloc(char, psize*w);
@@ -97,7 +95,8 @@ int main(int argc, char **argv){
     printf("\n");
     
 //    Decoding from genuine devices
-    jerasure_bitmatrix_decode(k, m, w, matrix, 0, random, data, coding, w*psize, psize);
-    printf("Devices recovered\n");
+    start = time(0);
+    jerasure_bitmatrix_decode(k, m, w, bitmatrix, 0, random, data, coding, w*psize, psize);
+    printf("Devices recovered, time elapsed: %lds\n", time(0) - start);
     printf("\n");
 }
