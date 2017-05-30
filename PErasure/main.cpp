@@ -13,53 +13,16 @@ using namespace std;
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
 
-
-static void print_data_and_coding(int k, int m, int w, int size, char **data, char **coding) {
-    int i, j, x;
-    int n, sp;
-    
-    if(k > m) n = k;
-    else n = m;
-    sp = size * 2 + size/(w/8) + 8;
-    
-    printf("%-*sCoding\n", sp, "Data");
-    for(i = 0; i < n; i++) {
-        if(i < k) {
-            printf("D%-2d:", i);
-            for(j=0;j< size; j+=(w/8)) {
-                printf(" ");
-                for(x=0;x < w/8;x++){
-                    printf("%02x", (unsigned char)data[i][j+x]);
-                }
-            }
-            printf("    ");
-        }
-        else printf("%*s", sp, "");
-        if(i < m) {
-            printf("C%-2d:", i);
-            for(j=0;j< size; j+=(w/8)) {
-                printf(" ");
-                for(x=0;x < w/8;x++){
-                    printf("%02x", (unsigned char)coding[i][j+x]);
-                }
-            }
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
-
-
 int main(int argc, char **argv){
 	
-	unsigned int m, k, w, i, j, n, seed, pzise;
+	unsigned int m, k, w, i, j, n, seed, psize;
 	int *matrix;
 	int *bitmatrix;
 	char **data, **coding;
     srand((unsigned int)time(NULL));
     
-    if(argc != 6) {
-        fprintf(stderr, "Please add arguments m, k, w\n");
+    if(argc != 5) {
+        fprintf(stderr, "Please add arguments m, k, w and packetsize\n");
         exit(1);
     }
 	if(sscanf(argv[1], "%d", &k) == 0 || k <= 0) {
@@ -108,10 +71,8 @@ int main(int argc, char **argv){
 	}
     jerasure_bitmatrix_encode(k, m, w, bitmatrix, data, coding, w*psize, psize);
     
-
-    printf("Encoding Complete:\n");
+    printf("Encoding Complete\n");
     printf("\n");
-    print_data_and_coding(k, m, w, psize, data, coding);
     
 //    Erasing m devices
     int random[m+1], r;
@@ -129,21 +90,14 @@ int main(int argc, char **argv){
     random[i] = -1;
     for(i = 0; i < m; i++) {
         if (random[i] < k)
-            bzero(data[random[i]], size);
-        else bzero(coding[random[i] - k], size);
+            bzero(data[random[i]], w*psize);
+        else bzero(coding[random[i] - k], w*psize);
     }
-    printf("Erased %d random devices:\n", m);
+    printf("Erased %d random devices\n", m);
     printf("\n");
-    print_data_and_coding(k, m, w, size, data, coding);
     
 //    Decoding from genuine devices
-    jerasure_matrix_decode(k, m, w, matrix, 0, random, data, coding, size);
-    printf("State of the system after decoding:\n");
+    jerasure_bitmatrix_decode(k, m, w, matrix, 0, random, data, coding, w*psize, psize);
+    printf("Devices recovered\n");
     printf("\n");
-    print_data_and_coding(k, m, w, size, data, coding);
-    
-    int *free, *total;
-    cudaMemGetInfo(free, total);
-    
-    printf("Free: %d \t Total: %d\n", free, total);
 }
