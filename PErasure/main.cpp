@@ -69,9 +69,9 @@ int main(int argc, char **argv){
 	for (i = 0; i < m; i++) {
 		coding[i] = talloc(char, psize*w);
 	}
+    long start = time(0);
     jerasure_bitmatrix_encode(k, m, w, bitmatrix, data, coding, w*psize, psize);
-    
-    printf("Encoding Complete\n");
+    printf("Encoding Complete, time elapsed: %lds\n", time(0) - start);
     printf("\n");
     
 //    Erasing m devices
