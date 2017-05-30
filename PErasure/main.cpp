@@ -1,16 +1,17 @@
+extern "C"{
+	#include "gf_rand.h"
+}
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
 #include <iostream>
 #include "jerasure.h"
-extern "C" {
-#include "gf_rand.h"
-}
 
 using namespace std;
 
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
+
 
 
 static void print_data_and_coding(int k, int m, int w, int size, char **data, char **coding) {
@@ -51,32 +52,36 @@ static void print_data_and_coding(int k, int m, int w, int size, char **data, ch
 
 int main(int argc, char **argv){
 	
-	unsigned int m, k, w, i, j, n, seed, size;
+	unsigned int m, k, w, i, j, n, seed, pzise;
 	int *matrix;
 	int *bitmatrix;
 	char **data, **coding;
     srand((unsigned int)time(NULL));
     
-    if(argc != 4) {
+    if(argc != 6) {
         fprintf(stderr, "Please add arguments m, k, w\n");
         exit(1);
     }
 	if(sscanf(argv[1], "%d", &k) == 0 || k <= 0) {
 		fprintf(stderr, "Wrong m\n"); 
 		exit(1);
-	};
+	}
 	if (sscanf(argv[2], "%d", &m) == 0 || m <= 0) {
 		fprintf(stderr, "Wrong k\n"); 
 		exit(1);
-	}; 
+	}
 	if (sscanf(argv[3], "%d", &w) == 0 || w <= 0 || w > 31) {
 		fprintf(stderr, "Wrong w\n"); 
 		exit(1);
-	}; 
+	}
+	if (sscanf(argv[4], "%d", &psize) == 0) {
+		fprintf(stderr, "Wrong packetsize\n"); 
+		exit(1);
+	}
 	if((k + m) > (1 << w)) {
 		fprintf(stderr, "Wrong w, the following must hold: m + k <= 2^w\n"); 
 		exit(1);
-	};
+	}
     
 //    Creating matrix and BDM
 	matrix = talloc(int, m*k);
@@ -90,25 +95,23 @@ int main(int argc, char **argv){
 
 //    Generating fake random data
 	seed = rand();
-    size = 8;
 	MOA_Seed(seed);
 	data = talloc(char *, k);
 	for (i = 0; i < k; i++) {
-		data[i] = talloc(char, size);
-		MOA_Fill_Random_Region(data[i], size);
+		data[i] = talloc(char, psize*w);
+		MOA_Fill_Random_Region(data[i], psize*w);
 	}
+
+	coding = talloc(char *, m);
+	for (i = 0; i < m; i++) {
+		coding[i] = talloc(char, psize*w);
+	}
+    jerasure_bitmatrix_encode(k, m, w, bitmatrix, data, coding, w*psize, psize);
     
-    coding = talloc(char *, m);
-    for (i = 0; i < m; i++) {
-        coding[i] = talloc(char, size);
-    }
-    jerasure_matrix_encode(k, m, w, matrix, data, coding, size);
-    
-	
-//    Printing all
+
     printf("Encoding Complete:\n");
     printf("\n");
-    print_data_and_coding(k, m, w, size, data, coding);
+    print_data_and_coding(k, m, w, psize, data, coding);
     
 //    Erasing m devices
     int random[m+1], r;
@@ -138,4 +141,9 @@ int main(int argc, char **argv){
     printf("State of the system after decoding:\n");
     printf("\n");
     print_data_and_coding(k, m, w, size, data, coding);
+    
+    int *free, *total;
+    cudaMemGetInfo(free, total);
+    
+    printf("Free: %d \t Total: %d\n", free, total);
 }
