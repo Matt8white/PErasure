@@ -13,20 +13,21 @@ using namespace std;
 
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
-__global__ void smpe()
+__global__ void smpe(int k, int w, char **dataDevice, char **codingDevice, int psize, int numOfLong)
 {
 	// TO DO
+	int i=0;
+	i += 1;
 }
 
 int main(int argc, char **argv){
 	
-	unsigned int m, k, w, i, j, n, seed, psize;
+	unsigned int m, k, w, i, j, d, r, l, seed, psize;
 	unsigned int round;
-	int numBytesBDM, numBytesData;
-	int *matrix;
-	int *bitmatrix;
-	int *bitmatrixDevice;
-	char **data, **dataDevice;
+	int numBytesBDM, numBytesData, numBytesCoding;
+	int *matrix, *bitmatrix, *bitmatrixDevice;
+	clock_t start;
+	char **data, **dataDevice, **dataTemp, **coding, **codingDevice, **codingTemp;
 	dim3 dimBlock(4, 4);
     dim3 dimGrid(4, 4);
     texture<int, 2> texture_reference;
@@ -69,8 +70,7 @@ int main(int argc, char **argv){
 	
 	bitmatrix = jerasure_matrix_to_bitmatrix(k, m, w, matrix);
 	
-//    Generating fake random data
-	dataTemp = talloc(char *, k);
+//    Generating fake random data		
 	data = talloc(char *, k);
 	for (i = 0; i < k; i++) {
 		data[i] = talloc(char, psize*w);
@@ -81,15 +81,13 @@ int main(int argc, char **argv){
 	for (i = 0; i < m; i++) {
 		coding[i] = talloc(char, psize*w);
 	}
-	
-    jerasure_bitmatrix_encode(k, m, w, bitmatrix, data, coding, w*psize, psize);
     
     //	Allocating GPU memory   
-    
+    start = clock();
     numBytesBDM = (m * k) * sizeof(int);
     cudaMalloc(&bitmatrixDevice, numBytesBDM);
-    cudaMemcpy(bitmatrixDevice, bitmatrix, numBytesBDM, cudaMemcpyHostToDevice);
-    cudaBindTexture(NULL, texture_reference, bitmatrixDevice, numBytesBDM)
+	cudaMemcpy(bitmatrixDevice, bitmatrix, numBytesBDM, cudaMemcpyHostToDevice);
+    cudaBindTexture(NULL, texture_reference, bitmatrixDevice, numBytesBDM);
     
     numBytesData = k * sizeof(long);
     cudaMalloc(&dataDevice, numBytesData);
@@ -101,25 +99,35 @@ int main(int argc, char **argv){
     //	Compute number of rounds
     size_t free, total;
     cudaMemGetInfo(&free, &total);
-    round = ceil((psize * w * (k + m)) / free)
+    round = ceil((float)(psize * w * (k + m)) / free);
+    dataTemp = talloc(char *, k);
+	for (i = 0; i < k; i++)
+		dataTemp[i] = talloc(char, psize/round*w);
+	codingTemp = talloc(char *, m);
+	for (i = 0; i < m; i++)
+		codingTemp[i] = talloc(char, psize/round*w);
+    printf("Free mem: %lu\n", free);
     
     for(i=0; i < round; i++){
+
 		// load data chunks
 		for(d=0; d < k; d++)
 			for(r=0; r < w; r++)
-				for(l=0; l < psize / round ; l++)
-					dataTemp[d][r*psize/round + l] += data[d][r*psize + l + i*psize/round]
+				for(l=0; l < psize / round; l++)
+					dataTemp[d][r*psize/round + l] += data[d][r*psize + l + i*psize/round];
 
 		cudaMemcpy(dataDevice, dataTemp, numBytesData, cudaMemcpyHostToDevice);
-		
+
 		for(j=0; j < m; j++)
-			smpe<<<dimGrid, dimBlock>>>(k, w, dataDevice, &codingDevice+(m + i*round), size, sizeof(long));
+			smpe<<<dimGrid, dimBlock>>>(k, w, dataDevice, codingTemp+(m*w*psize/round), psize, sizeof(long));
 		// copy coding back to main memory
 		cudaMemcpy(codingTemp, codingDevice, numBytesCoding, cudaMemcpyDeviceToHost);
-		Extend_Coding_Device(codingTemp, coding, destId);
+		// Extend_Coding_Device(codingTemp, coding, destId);
+
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
 	}
-    
+    printf("Encoding complete, time elapsed: %.2fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+
     return 0;
 }
