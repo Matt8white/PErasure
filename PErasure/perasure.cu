@@ -13,23 +13,37 @@ using namespace std;
 
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
-__global__ void smpe(int k, int w, char **dataDevice, char **codingDevice, int psize, int numOfLong) {
-	// TO DO
-	int i=0;
-	i += 1;
+__global__ void smpe(int k, int w, char *dataDevice, char *codingDevice, int psize, int numOfLong) {
+	
+	int tidx = blockIdx.x*blockDim.x + threadIdx.x;
+	int tidy = blockIdx.y*blockDim.y + threadIdx.y;
+	
+	int lenData = psize;
+	int numOfData = ceil((float)(lenData) / (blockDim.x * blockDim.y));
+	int base = numOfData * (tidx + tidy);
+
+	int i, j;
+	if(base < lenData){
+		for(i=0; i < w; i++)
+			for(j=0; j < numOfData; j++)
+				*(codingDevice + base + i*lenData + j) = 'a';	
+	}
+	
 }
 
 int main(int argc, char **argv){
 
 	unsigned int m, k, w, i, j, d, r, l, seed, psize;
 	unsigned int round;
-	int numBytesBDM, numBytesData, numBytesCoding;
+	//int numBytesBDM, numBytesData, numBytesCoding;
 	int *matrix, *bitmatrix, *bitmatrixDevice;
 	clock_t start;
-	char **data, **dataDevice, **dataTemp, **coding, **codingDevice, **codingTemp;
+	char *data, *dataDevice, *dataTemp, *coding, *codingDevice, *codingTemp;
 	dim3 dimBlock(4, 4);
     dim3 dimGrid(4, 4);
     texture<int, 2> texture_reference;
+    
+    srand(time(NULL));
 
 
     if(argc != 5) {
@@ -70,63 +84,88 @@ int main(int argc, char **argv){
 	bitmatrix = jerasure_matrix_to_bitmatrix(k, m, w, matrix);
 
 //    Generating fake random data
-	data = talloc(char *, k);
+	data = talloc(char , k*w*psize);
 	for (i = 0; i < k; i++) {
-		data[i] = talloc(char, psize*w);
-		MOA_Fill_Random_Region(data[i], psize*w);
+		//MOA_Fill_Random_Region(data+i*psize*w, psize*w);
+		for(j=0; j< w*psize; j++)
+			*(data + i*psize*w + j) = 97 + rand()%26;
 	}
 
-	coding = talloc(char *, m);
-	for (i = 0; i < m; i++) {
-		coding[i] = talloc(char, psize*w);
-	}
-
+	coding = talloc(char , m * w * psize);
+	
+	//for(i = 0; i < k; i++){
+		//for(j = 0; j < w * psize; j++)
+			//printf("%c ", *(data+i*w*psize + j));
+		//printf("\n");
+	//}
+	//printf("\n");
+	
+	//for(i = 0; i < k; i++){
+		//for(j = 0; j < w * psize /2; j++)
+			//printf("%c ", *(dataTemp + i*w*psize/2 + j));
+		//printf("\n");
+	//}
+	//printf("\n");
+	
+	
     //	Allocating GPU memory
     start = clock();
-    numBytesBDM = (m * k) * sizeof(int);
-    cudaMalloc(&bitmatrixDevice, numBytesBDM);
-	cudaMemcpy(bitmatrixDevice, bitmatrix, numBytesBDM, cudaMemcpyHostToDevice);
-    cudaBindTexture(NULL, texture_reference, bitmatrixDevice, numBytesBDM);
 
-    numBytesData = k * sizeof(long);
-    cudaMalloc(&dataDevice, numBytesData);
-
-    numBytesCoding = m * sizeof(long);
-    cudaMalloc(&codingDevice, numBytesCoding);
-    cudaMemcpy(codingDevice, coding, numBytesCoding, cudaMemcpyHostToDevice);
-
+    //cudaBindTexture(NULL, texture_reference, bitmatrixDevice, numBytesBDM);
+    
+    cudaMalloc(&bitmatrixDevice, m*k*w*w*sizeof(int));
+    cudaMemcpy(bitmatrixDevice, bitmatrix, m*k*w*w*sizeof(int), cudaMemcpyHostToDevice);
+    
     //	Compute number of rounds
     size_t free, total;
     cudaMemGetInfo(&free, &total);
+    
     round = ceil((float)(psize * w * (k + m)) / free);
-    dataTemp = talloc(char *, k);
-	for (i = 0; i < k; i++)
-		dataTemp[i] = talloc(char, psize/round*w);
-	codingTemp = talloc(char *, m);
-	for (i = 0; i < m; i++)
-		codingTemp[i] = talloc(char, psize/round*w);
+
     printf("Free mem: %lu\n", free);
+    
+	dataTemp = talloc(char , k * w * (psize/round));
+	cudaMalloc(&dataDevice, k * w * (psize/round));
+	
+	codingTemp = talloc(char, m * w * (psize/round));
+	cudaMalloc(&codingDevice, m * w * (psize/round));
 
     for(i = 0; i < round; i++){
-
+	
 		// load data chunks
+
 		for(d = 0; d < k; d++)
 			for(r = 0; r < w; r++)
 				for(l = 0; l < psize / round; l++)
-					dataTemp[d][r*psize/round+l] += data[d][r*psize+l+i*psize/round];
+					*(dataTemp + d * w *(psize/round) + r * (psize/round) + l) = *(data + d * w * psize + i * psize/round + r * psize + l);
 
-		cudaMemcpy(dataDevice, dataTemp, numBytesData, cudaMemcpyHostToDevice);
+		cudaMemcpy(dataDevice, dataTemp, k * w * (psize/round), cudaMemcpyHostToDevice);
+		cudaMemcpy(codingDevice, codingTemp, m * w * (psize/round), cudaMemcpyHostToDevice);
 
 		for(j = 0; j < m; j++)
-			smpe<<<dimGrid, dimBlock>>>(k, w, dataDevice, codingTemp + (m*w*psize/round), psize, sizeof(long));
+			smpe<<<dimGrid, dimBlock>>>(k, w, dataDevice, codingDevice + j * w * (psize/round), (psize/round), sizeof(long));
 		// copy coding back to main memory
-		cudaMemcpy(codingTemp, codingDevice, numBytesCoding, cudaMemcpyDeviceToHost);
+		cudaMemcpy(codingTemp, codingDevice, m * w * (psize/round), cudaMemcpyDeviceToHost);
 		// Extend_Coding_Device(codingTemp, coding, destId);
 
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
 	}
     printf("Encoding complete, time elapsed: %.2fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+    
+    for(i = 0; i < k; i++){
+		for(j = 0; j < w * psize; j++)
+			printf("%c ", *(dataTemp+i*w*psize + j));
+		printf("\n");
+	}
+	printf("\n");
+	
+	for(i = 0; i < m; i++){
+		for(j = 0; j < w * psize; j++)
+			printf("%c ", *(codingTemp + i*w*psize + j));
+		printf("\n");
+	}
+	printf("\n");
 
     return 0;
 }
