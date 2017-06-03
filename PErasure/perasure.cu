@@ -13,21 +13,49 @@ using namespace std;
 
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
-__global__ void smpe(int k, int w, char *dataDevice, char *codingDevice, int psize, int numOfLong) {
+__global__ void smpe(int k, int w, int *bitmatrixDevice, char *dataDevice, char *codingDevice, int psize, int numOfLong) {
+	__shared__ long sharedData[psize * w];
+	int blockNumInGrid, threadsPerBlock, threadNumInBlock, tId;
+	blockNumInGrid = blockIdx.x + gridDim.x * blockIdx.y;
+	threadsPerBlock = blockDim.x * blockDim.y;
+	threadNumInBlock = threadIdx.x + blockDim.x * threadIdx.y;
+	tId = blockNumInGrid * threadsPerBlock + threadNumInBlock;
 	
-	int tidx = blockIdx.x*blockDim.x + threadIdx.x;
-	int tidy = blockIdx.y*blockDim.y + threadIdx.y;
+	int rowIdx = tId / numOfLong;
+	int colIdx =  tId % numOfLong;
 	
-	int lenData = psize;
-	int numOfData = ceil((float)(lenData) / (blockDim.x * blockDim.y));
-	int base = numOfData * (tidx + tidy);
+	
+	//int tidx = blockIdx.x*blockDim.x + threadIdx.x;
+	//int tidy = blockIdx.y*blockDim.y + threadIdx.y;
+	//int lenData = psize;
+	//int numOfData = ceil((float)(lenData) / (blockDim.x * blockDim.y));
+	//int base = numOfData * (tidx + tidy);
 
-	int i, j;
-	if(base < lenData){
-		for(i=0; i < w; i++)
-			for(j=0; j < numOfData; j++)
-				*(codingDevice + base + i*lenData + j) = 'a';	
-	}
+	//int i, j;
+	//if(base < lenData){
+		//for(i=0; i < w; i++)
+			//for(j=0; j < numOfData; j++)
+				//*(codingDevice + base + i*lenData + j) = 'a';	
+	//}
+	
+	if(tId * sizeof(long) > psize)
+		return;
+	
+	for(dataIdx = 0; dataIdx < k; dataIdx++)
+		memcpy((char *)&sharedData, (char *)(dataDevice + dataIdx * psize * w), psize * w * sizeof(long)); //capire bene cosa succede qui
+		//sharedData = *(dataDevice + dataIdx * psize * w)
+		__syncthreads();
+		index = 0;
+		for(i=0; i<w; i++) //qui manca qualcosa 
+			sdIndex = dataIdx + i * psize + colIndex;
+			temp ^= (*(bitmatrixDevice + index) & sharedData[sdIndex]);
+			index++;
+		__syncthreads();
+	codingDevice = 
+				
+		
+		
+		
 	
 }
 
@@ -110,8 +138,6 @@ int main(int argc, char **argv){
 	
     //	Allocating GPU memory
     start = clock();
-
-    //cudaBindTexture(NULL, texture_reference, bitmatrixDevice, numBytesBDM);
     
     cudaMalloc(&bitmatrixDevice, m*k*w*w*sizeof(int));
     cudaMemcpy(bitmatrixDevice, bitmatrix, m*k*w*w*sizeof(int), cudaMemcpyHostToDevice);
@@ -143,7 +169,7 @@ int main(int argc, char **argv){
 		cudaMemcpy(codingDevice, codingTemp, m * w * (psize/round), cudaMemcpyHostToDevice);
 
 		for(j = 0; j < m; j++)
-			smpe<<<dimGrid, dimBlock>>>(k, w, dataDevice, codingDevice + j * w * (psize/round), (psize/round), sizeof(long));
+			smpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice + j * w * w * k, dataDevice, codingDevice + j * w * (psize/round), (psize/round), sizeof(long));
 		// copy coding back to main memory
 		cudaMemcpy(codingTemp, codingDevice, m * w * (psize/round), cudaMemcpyDeviceToHost);
 		// Extend_Coding_Device(codingTemp, coding, destId);
