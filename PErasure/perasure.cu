@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cuda.h>
 #include "jerasure.h"
+#include <algorithm>
 extern "C"{
 	#include "gf_rand.h"
 }
@@ -13,50 +14,68 @@ using namespace std;
 
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
-__global__ void smpe(int k, int w, int *bitmatrixDevice, char *dataDevice, char *codingDevice, int psize, int numOfLong) {
-	__shared__ long sharedData[psize * w];
+//__global__ void smpe(int k, int w, int *bitmatrixDevice, int destId, char *dataDevice, char *codingDevice, int dataSize, int numOfLong) {
+	//__shared__ char sharedData[dataSize];
+	//int blockNumInGrid, threadsPerBlock, threadNumInBlock, tId;
+	//blockNumInGrid = blockIdx.x + gridDim.x * blockIdx.y;
+	//threadsPerBlock = blockDim.x * blockDim.y;
+	//threadNumInBlock = threadIdx.x + blockDim.x * threadIdx.y;
+	//tId = blockNumInGrid * threadsPerBlock + threadNumInBlock;
+	
+	//int rowIdx = tId / numOfLong;
+	//int colIdx =  tId % numOfLong;
+	//int temp = 0;
+	//int wordsPerThread = max(1, (dataSize/sizeof(long))/(gridDim.x * gridDim.y * blockDim.x * blockDim.y));
+	
+	//if(tId * sizeof(long) >= dataSize)
+		//return;
+	
+	//for(dataIdx = 0; dataIdx < k; dataIdx++)
+		//memcpy((char *)&sharedData, (char *)(dataDevice + dataIdx * dataSize + tId * ), sizeof(long)); //capire bene cosa succede qui
+		////sharedData = *(dataDevice + dataIdx * psize * w)
+		//__syncthreads();
+		//index = 0;
+		//for(i=0; i<w; i++) //qui manca qualcosa 
+			//sdIndex = dataIdx + i * psize + colIndex;
+			//temp ^= (*(bitmatrixDevice + index) & sharedData[sdIndex]);
+			//index++;
+		//__syncthreads();
+	//codingDevice = 
+	
+//}
+
+__global__ void gmpe(int k, int w, int *bitmatrixDevice, int destId, long *dataDevice, long *codingDevice, int dataSize, int numOfLong) {
+	
 	int blockNumInGrid, threadsPerBlock, threadNumInBlock, tId;
 	blockNumInGrid = blockIdx.x + gridDim.x * blockIdx.y;
 	threadsPerBlock = blockDim.x * blockDim.y;
 	threadNumInBlock = threadIdx.x + blockDim.x * threadIdx.y;
 	tId = blockNumInGrid * threadsPerBlock + threadNumInBlock;
 	
-	int rowIdx = tId / numOfLong;
-	int colIdx =  tId % numOfLong;
+	int longIndex = tId % numOfLong;
+	int index, dataIdx, i, j;
+	long temp;
+	long *codPtr, *dtPtr, *innerDtPtr;
 	
-	
-	//int tidx = blockIdx.x*blockDim.x + threadIdx.x;
-	//int tidy = blockIdx.y*blockDim.y + threadIdx.y;
-	//int lenData = psize;
-	//int numOfData = ceil((float)(lenData) / (blockDim.x * blockDim.y));
-	//int base = numOfData * (tidx + tidy);
-
-	//int i, j;
-	//if(base < lenData){
-		//for(i=0; i < w; i++)
-			//for(j=0; j < numOfData; j++)
-				//*(codingDevice + base + i*lenData + j) = 'a';	
-	//}
-	
-	if(tId * sizeof(long) > psize)
+	if( tId >= numOfLong)
 		return;
 	
-	for(dataIdx = 0; dataIdx < k; dataIdx++)
-		memcpy((char *)&sharedData, (char *)(dataDevice + dataIdx * psize * w), psize * w * sizeof(long)); //capire bene cosa succede qui
-		//sharedData = *(dataDevice + dataIdx * psize * w)
-		__syncthreads();
-		index = 0;
-		for(i=0; i<w; i++) //qui manca qualcosa 
-			sdIndex = dataIdx + i * psize + colIndex;
-			temp ^= (*(bitmatrixDevice + index) & sharedData[sdIndex]);
-			index++;
-		__syncthreads();
-	codingDevice = 
-				
-		
-		
-		
-	
+	for(i=0; i<w; i++){
+		codPtr = codingDevice + destId * w * numOfLong + i * numOfLong;
+		index = destId * k * w * w + i * w;
+		temp = 0;
+		for(dataIdx=0; dataIdx<k; dataIdx++){
+			dtPtr = dataDevice + dataIdx * w * numOfLong;
+			for(j=0; j<w; j++){
+				if(bitmatrixDevice[index]){
+					innerDtPtr = dtPtr + j * numOfLong;
+					temp ^= innerDtPtr[longIndex];
+				}
+				index++;
+			}
+		}
+		codPtr[longIndex] = temp;
+	}
 }
 
 int main(int argc, char **argv){
@@ -66,16 +85,16 @@ int main(int argc, char **argv){
 	//int numBytesBDM, numBytesData, numBytesCoding;
 	int *matrix, *bitmatrix, *bitmatrixDevice;
 	clock_t start;
-	char *data, *dataDevice, *dataTemp, *coding, *codingDevice, *codingTemp;
-	dim3 dimBlock(4, 4);
-    dim3 dimGrid(4, 4);
+	long *data, *dataDevice, *dataTemp, *coding, *codingDevice, *codingTemp;
+	dim3 dimGrid(1, 1);
+	dim3 dimBlock(16, 1);
     texture<int, 2> texture_reference;
     
     srand(time(NULL));
 
 
     if(argc != 5) {
-        fprintf(stderr, "Please add arguments m, k, w and size\n");
+        fprintf(stderr, "Please add arguments k, m, w and size\n");
         exit(1);
     }
 	if(sscanf(argv[1], "%d", &k) == 0 || k <= 0) {
@@ -98,7 +117,7 @@ int main(int argc, char **argv){
 		fprintf(stderr, "Wrong w, the following must hold: m + k <= 2^w\n");
 		exit(1);
 	}
-
+	psize = psize/sizeof(long);
 //    Creating matrix and BDM
 	seed = rand();
 	MOA_Seed(seed);
@@ -110,31 +129,17 @@ int main(int argc, char **argv){
 	}
 
 	bitmatrix = jerasure_matrix_to_bitmatrix(k, m, w, matrix);
+	//jerasure_print_bitmatrix(bitmatrix, m*w, k*w, w);
 
 //    Generating fake random data
-	data = talloc(char , k*w*psize);
+	data = talloc(long , k*w*psize);
 	for (i = 0; i < k; i++) {
 		//MOA_Fill_Random_Region(data+i*psize*w, psize*w);
 		for(j=0; j< w*psize; j++)
 			*(data + i*psize*w + j) = 97 + rand()%26;
 	}
 
-	coding = talloc(char , m * w * psize);
-	
-	//for(i = 0; i < k; i++){
-		//for(j = 0; j < w * psize; j++)
-			//printf("%c ", *(data+i*w*psize + j));
-		//printf("\n");
-	//}
-	//printf("\n");
-	
-	//for(i = 0; i < k; i++){
-		//for(j = 0; j < w * psize /2; j++)
-			//printf("%c ", *(dataTemp + i*w*psize/2 + j));
-		//printf("\n");
-	//}
-	//printf("\n");
-	
+	coding = talloc(long , m * w * psize);
 	
     //	Allocating GPU memory
     start = clock();
@@ -150,11 +155,11 @@ int main(int argc, char **argv){
 
     printf("Free mem: %lu\n", free);
     
-	dataTemp = talloc(char , k * w * (psize/round));
-	cudaMalloc(&dataDevice, k * w * (psize/round));
+	dataTemp = talloc(long , k * w * (psize/round));
+	cudaMalloc(&dataDevice, k * w * (psize/round) * sizeof(long));
 	
-	codingTemp = talloc(char, m * w * (psize/round));
-	cudaMalloc(&codingDevice, m * w * (psize/round));
+	codingTemp = talloc(long, m * w * (psize/round));
+	cudaMalloc(&codingDevice, m * w * (psize/round) * sizeof(long));
 
     for(i = 0; i < round; i++){
 	
@@ -165,14 +170,17 @@ int main(int argc, char **argv){
 				for(l = 0; l < psize / round; l++)
 					*(dataTemp + d * w *(psize/round) + r * (psize/round) + l) = *(data + d * w * psize + i * psize/round + r * psize + l);
 
-		cudaMemcpy(dataDevice, dataTemp, k * w * (psize/round), cudaMemcpyHostToDevice);
-		cudaMemcpy(codingDevice, codingTemp, m * w * (psize/round), cudaMemcpyHostToDevice);
+		cudaMemcpy(dataDevice, dataTemp, k * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
+		cudaMemcpy(codingDevice, codingTemp, m * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
 
 		for(j = 0; j < m; j++)
-			smpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice + j * w * w * k, dataDevice, codingDevice + j * w * (psize/round), (psize/round), sizeof(long));
+			//smpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice + j * w * w * k, j, dataDevice, codingDevice, (psize/round) * w, sizeof(long));
+			gmpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice + j * w * w * k, j, dataDevice, codingDevice, (psize/round) * w, (psize/round));
 		// copy coding back to main memory
-		cudaMemcpy(codingTemp, codingDevice, m * w * (psize/round), cudaMemcpyDeviceToHost);
+		
+		cudaMemcpy(codingTemp, codingDevice, m * w * (psize/round) * sizeof(long), cudaMemcpyDeviceToHost);
 		// Extend_Coding_Device(codingTemp, coding, destId);
+		
 
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
@@ -181,14 +189,14 @@ int main(int argc, char **argv){
     
     for(i = 0; i < k; i++){
 		for(j = 0; j < w * psize; j++)
-			printf("%c ", *(dataTemp+i*w*psize + j));
+			printf("%ld ", *(dataTemp+i*w*psize + j));
 		printf("\n");
 	}
 	printf("\n");
 	
 	for(i = 0; i < m; i++){
 		for(j = 0; j < w * psize; j++)
-			printf("%c ", *(codingTemp + i*w*psize + j));
+			printf("%ld ", *(codingTemp + i*w*psize + j));
 		printf("\n");
 	}
 	printf("\n");
