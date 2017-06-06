@@ -22,20 +22,15 @@ using namespace std;
 	//threadNumInBlock = threadIdx.x + blockDim.x * threadIdx.y;
 	//tId = blockNumInGrid * threadsPerBlock + threadNumInBlock;
 	
-	//int rowIdx = tId / numOfLong;
-	//int colIdx =  tId % numOfLong;
-	//int temp = 0;
-	//int wordsPerThread = max(1, (dataSize/sizeof(long))/(gridDim.x * gridDim.y * blockDim.x * blockDim.y));
 	
 	//if(tId * sizeof(long) >= dataSize)
 		//return;
 	
 	//for(dataIdx = 0; dataIdx < k; dataIdx++)
-		//memcpy((char *)&sharedData, (char *)(dataDevice + dataIdx * dataSize + tId * ), sizeof(long)); //capire bene cosa succede qui
+		//memcpy((char *)&sharedData, (char *)(dataDevice + dataIdx * dataSize + tId * ), sizeof(long));
 		////sharedData = *(dataDevice + dataIdx * psize * w)
 		//__syncthreads();
-		//index = 0;
-		//for(i=0; i<w; i++) //qui manca qualcosa 
+		//for(i=0; i<w; i++) 
 			//sdIndex = dataIdx + i * psize + colIndex;
 			//temp ^= (*(bitmatrixDevice + index) & sharedData[sdIndex]);
 			//index++;
@@ -62,7 +57,7 @@ __global__ void gmpe(int k, int w, int *bitmatrixDevice, int destId, long *dataD
 	
 	for(i=0; i<w; i++){
 		codPtr = codingDevice + destId * w * numOfLong + i * numOfLong;
-		index = destId * k * w * w + i * w;
+		index = destId * k * w * w + i * k * w;
 		temp = 0;
 		for(dataIdx=0; dataIdx<k; dataIdx++){
 			dtPtr = dataDevice + dataIdx * w * numOfLong;
@@ -78,17 +73,23 @@ __global__ void gmpe(int k, int w, int *bitmatrixDevice, int destId, long *dataD
 	}
 }
 
+
+void extendCodingDevice(long *codingTemp, long *coding, int i, int m, int psize, int offset, int rows){
+	int k, j;
+	
+	for(k=0; k<m; k++)	
+		for(j=0; j<rows; j++)
+			memcpy((coding + k * psize * rows + psize * j + i * offset), (codingTemp + k * offset * rows + offset * j), sizeof(long) * offset);
+}
+
 int main(int argc, char **argv){
 
-	unsigned int m, k, w, i, j, d, r, l, seed, psize;
+	unsigned int m, k, w, i, j, d, r, l, y, seed, psize;
 	unsigned int round;
 	//int numBytesBDM, numBytesData, numBytesCoding;
 	int *matrix, *bitmatrix, *bitmatrixDevice;
 	clock_t start;
 	long *data, *dataDevice, *dataTemp, *coding, *codingDevice, *codingTemp;
-	dim3 dimGrid(1, 1);
-	dim3 dimBlock(16, 1);
-    texture<int, 2> texture_reference;
     
     srand(time(NULL));
 
@@ -118,6 +119,10 @@ int main(int argc, char **argv){
 		exit(1);
 	}
 	psize = psize/sizeof(long);
+	
+	dim3 dimGrid(1, 1);
+	dim3 dimBlock(psize, 1);
+	
 //    Creating matrix and BDM
 	seed = rand();
 	MOA_Seed(seed);
@@ -134,7 +139,6 @@ int main(int argc, char **argv){
 //    Generating fake random data
 	data = talloc(long , k*w*psize);
 	for (i = 0; i < k; i++) {
-		//MOA_Fill_Random_Region(data+i*psize*w, psize*w);
 		for(j=0; j< w*psize; j++)
 			*(data + i*psize*w + j) = 97 + rand()%26;
 	}
@@ -160,28 +164,29 @@ int main(int argc, char **argv){
 	
 	codingTemp = talloc(long, m * w * (psize/round));
 	cudaMalloc(&codingDevice, m * w * (psize/round) * sizeof(long));
-
+	
     for(i = 0; i < round; i++){
 	
 		// load data chunks
-
 		for(d = 0; d < k; d++)
 			for(r = 0; r < w; r++)
 				for(l = 0; l < psize / round; l++)
 					*(dataTemp + d * w *(psize/round) + r * (psize/round) + l) = *(data + d * w * psize + i * psize/round + r * psize + l);
-
+					
+		cudaMalloc(&dataDevice, k * w * (psize/round) * sizeof(long));
+		cudaMalloc(&codingDevice, m * w * (psize/round) * sizeof(long));
 		cudaMemcpy(dataDevice, dataTemp, k * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
 		cudaMemcpy(codingDevice, codingTemp, m * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
 
 		for(j = 0; j < m; j++)
 			//smpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice + j * w * w * k, j, dataDevice, codingDevice, (psize/round) * w, sizeof(long));
-			gmpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice + j * w * w * k, j, dataDevice, codingDevice, (psize/round) * w, (psize/round));
+			gmpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice, j, dataDevice, codingDevice, (psize/round) * w, (psize/round));
+			
 		// copy coding back to main memory
-		
+		cudaDeviceSynchronize();
 		cudaMemcpy(codingTemp, codingDevice, m * w * (psize/round) * sizeof(long), cudaMemcpyDeviceToHost);
-		// Extend_Coding_Device(codingTemp, coding, destId);
+		extendCodingDevice(codingTemp, coding, i, m, psize, (psize/round), w);
 		
-
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
 	}
@@ -189,14 +194,14 @@ int main(int argc, char **argv){
     
     for(i = 0; i < k; i++){
 		for(j = 0; j < w * psize; j++)
-			printf("%ld ", *(dataTemp+i*w*psize + j));
+			printf("%c ", (char)*(data + i*w*psize + j));
 		printf("\n");
 	}
 	printf("\n");
 	
 	for(i = 0; i < m; i++){
 		for(j = 0; j < w * psize; j++)
-			printf("%ld ", *(codingTemp + i*w*psize + j));
+			printf("%c ", (char)*(coding + i*w*psize + j));
 		printf("\n");
 	}
 	printf("\n");
