@@ -5,7 +5,6 @@
 #include <iostream>
 #include <cuda.h>
 #include "jerasure.h"
-#include <algorithm>
 extern "C"{
 	#include "gf_rand.h"
 }
@@ -84,9 +83,8 @@ void extendCodingDevice(long *codingTemp, long *coding, int i, int m, int psize,
 
 int main(int argc, char **argv){
 
-	unsigned int m, k, w, i, j, d, r, l, y, seed, psize;
+	unsigned int m, k, w, i, j, d, r, l, seed, psize;
 	unsigned int round;
-	//int numBytesBDM, numBytesData, numBytesCoding;
 	int *matrix, *bitmatrix, *bitmatrixDevice;
 	clock_t start;
 	long *data, *dataDevice, *dataTemp, *coding, *codingDevice, *codingTemp;
@@ -190,18 +188,18 @@ int main(int argc, char **argv){
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
 	}
-    printf("Encoding complete, time elapsed: %.2fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+    printf("Encoding complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
     
     for(i = 0; i < k; i++){
 		for(j = 0; j < w * psize; j++)
-			printf("%c ", (char)*(data + i*w*psize + j));
+			printf("%ld ", *(data + i*w*psize + j));
 		printf("\n");
 	}
 	printf("\n");
 	
 	for(i = 0; i < m; i++){
 		for(j = 0; j < w * psize; j++)
-			printf("%c ", (char)*(coding + i*w*psize + j));
+			printf("%ld ", *(coding + i*w*psize + j));
 		printf("\n");
 	}
 	printf("\n");
