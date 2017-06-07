@@ -117,9 +117,6 @@ int main(int argc, char **argv){
 	}
 	psize = psize/sizeof(long);
 	
-	dim3 dimGrid(1, 1);
-	dim3 dimBlock(psize, 1);
-	
 //    Creating matrix and BDM
 	seed = rand();
 	MOA_Seed(seed);
@@ -180,22 +177,23 @@ int main(int argc, char **argv){
 			cudaMemcpy(dataDevice, data, k * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
 			cudaMemcpy(codingDevice, codingTemp, m * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
 		}
-		
+		start = clock();
 		for(j = 0; j < m; j++)
 			//smpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice + j * w * w * k, j, dataDevice, codingDevice, (psize/round) * w, sizeof(long));
-			gmpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice, j, dataDevice, codingDevice, (psize/round) * w, (psize/round));
+			gmpe<<<1024, 1024>>>(k, w, bitmatrixDevice, j, dataDevice, codingDevice, (psize/round) * w, (psize/round));
 			
 		// copy coding back to main memory
 		cudaDeviceSynchronize();
+		printf("Encoding complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
 		cudaMemcpy(coding, codingDevice, m * w * (psize/round) * sizeof(long), cudaMemcpyDeviceToHost);
 		//extendCodingDevice(codingTemp, coding, i, m, psize, (psize/round), w);
 
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
 	}
-    printf("Encoding complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+    //printf("Encoding complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
 
-    // Status after coding
+    //Status after coding
     for(i = 0; i < k; i++){
 		for(j = 0; j < w * psize; j++)
 			printf("%02x ", (unsigned char)*(data + i*w*psize + j));
