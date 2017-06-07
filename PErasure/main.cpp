@@ -57,15 +57,15 @@ int main(int argc, char **argv){
     srand((unsigned int)time(NULL));
     
     if(argc != 5) {
-        fprintf(stderr, "Please add arguments m, k, w and packetsize\n");
+        fprintf(stderr, "Please add arguments k, m, w and packetsize\n");
         exit(1);
     }
 	if(sscanf(argv[1], "%d", &k) == 0 || k <= 0) {
-		fprintf(stderr, "Wrong m\n"); 
+		fprintf(stderr, "Wrong k\n"); 
 		exit(1);
 	}
 	if (sscanf(argv[2], "%d", &m) == 0 || m <= 0) {
-		fprintf(stderr, "Wrong k\n"); 
+		fprintf(stderr, "Wrong m\n"); 
 		exit(1);
 	}
 	if (sscanf(argv[3], "%d", &w) == 0 || w <= 0 || w > 31) {
@@ -105,8 +105,8 @@ int main(int argc, char **argv){
 	}
     start = clock();
     jerasure_bitmatrix_encode(k, m, w, bitmatrix, data, coding, w*psize, psize);
-    printf("Encoding Complete, time elapsed: %.2fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
-    print_data_and_coding(k, m, w, psize, data, coding);
+    printf("Encoding Complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+    //print_data_and_coding(k, m, w, psize, data, coding);
     printf("\n");
     
 //    Erasing m devices
@@ -129,13 +129,13 @@ int main(int argc, char **argv){
         else bzero(coding[random[i] - k], w*psize);
     }
     printf("Erased %d random devices\n", m);
-    print_data_and_coding(k, m, w, psize, data, coding);
+    //print_data_and_coding(k, m, w, psize, data, coding);
     printf("\n");
     
 //    Decoding from genuine devices
     start = clock();
     jerasure_bitmatrix_decode(k, m, w, bitmatrix, 0, random, data, coding, w*psize, psize);
-    printf("Devices recovered, time elapsed: %.2fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
-    print_data_and_coding(k, m, w, psize, data, coding);
+    printf("Devices recovered, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+    //print_data_and_coding(k, m, w, psize, data, coding);
     printf("\n");
 }

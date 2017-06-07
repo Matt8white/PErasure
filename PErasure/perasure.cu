@@ -91,17 +91,16 @@ int main(int argc, char **argv){
     
     srand(time(NULL));
 
-
     if(argc != 5) {
         fprintf(stderr, "Please add arguments k, m, w and size\n");
         exit(1);
     }
 	if(sscanf(argv[1], "%d", &k) == 0 || k <= 0) {
-		fprintf(stderr, "Wrong m\n");
+		fprintf(stderr, "Wrong k\n");
 		exit(1);
 	}
 	if (sscanf(argv[2], "%d", &m) == 0 || m <= 0) {
-		fprintf(stderr, "Wrong k\n");
+		fprintf(stderr, "Wrong m\n");
 		exit(1);
 	}
 	if (sscanf(argv[3], "%d", &w) == 0 || w <= 0 || w > 31) {
@@ -132,7 +131,6 @@ int main(int argc, char **argv){
 	}
 
 	bitmatrix = jerasure_matrix_to_bitmatrix(k, m, w, matrix);
-	//jerasure_print_bitmatrix(bitmatrix, m*w, k*w, w);
 
 //    Generating fake random data
 	data = talloc(long , k*w*psize);
@@ -144,12 +142,12 @@ int main(int argc, char **argv){
 	coding = talloc(long , m * w * psize);
 	
     //	Allocating GPU memory
-    start = clock();
     
     cudaMalloc(&bitmatrixDevice, m*k*w*w*sizeof(int));
     cudaMemcpy(bitmatrixDevice, bitmatrix, m*k*w*w*sizeof(int), cudaMemcpyHostToDevice);
     
     //	Compute number of rounds
+    
     size_t free, total;
     cudaMemGetInfo(&free, &total);
     
@@ -158,48 +156,131 @@ int main(int argc, char **argv){
     printf("Free mem: %lu\n", free);
     
 	dataTemp = talloc(long , k * w * (psize/round));
-	cudaMalloc(&dataDevice, k * w * (psize/round) * sizeof(long));
 	
 	codingTemp = talloc(long, m * w * (psize/round));
-	cudaMalloc(&codingDevice, m * w * (psize/round) * sizeof(long));
 	
+	start = clock();
+
     for(i = 0; i < round; i++){
 	
 		// load data chunks
-		for(d = 0; d < k; d++)
-			for(r = 0; r < w; r++)
-				for(l = 0; l < psize / round; l++)
-					*(dataTemp + d * w *(psize/round) + r * (psize/round) + l) = *(data + d * w * psize + i * psize/round + r * psize + l);
-					
-		cudaMalloc(&dataDevice, k * w * (psize/round) * sizeof(long));
-		cudaMalloc(&codingDevice, m * w * (psize/round) * sizeof(long));
-		cudaMemcpy(dataDevice, dataTemp, k * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
-		cudaMemcpy(codingDevice, codingTemp, m * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
-
+		if(round > 1){
+			for(d = 0; d < k; d++)
+				for(r = 0; r < w; r++)
+					for(l = 0; l < psize / round; l++)
+						*(dataTemp + d * w *(psize/round) + r * (psize/round) + l) = *(data + d * w * psize + i * psize/round + r * psize + l);
+						
+			cudaMalloc(&dataDevice, k * w * (psize/round) * sizeof(long));
+			cudaMalloc(&codingDevice, m * w * (psize/round) * sizeof(long));
+			cudaMemcpy(dataDevice, dataTemp, k * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
+			cudaMemcpy(codingDevice, coding, m * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
+		}else{
+			cudaMalloc(&dataDevice, k * w * (psize/round) * sizeof(long));
+			cudaMalloc(&codingDevice, m * w * (psize/round) * sizeof(long));
+			cudaMemcpy(dataDevice, data, k * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
+			cudaMemcpy(codingDevice, codingTemp, m * w * (psize/round) * sizeof(long), cudaMemcpyHostToDevice);
+		}
+		
 		for(j = 0; j < m; j++)
 			//smpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice + j * w * w * k, j, dataDevice, codingDevice, (psize/round) * w, sizeof(long));
 			gmpe<<<dimGrid, dimBlock>>>(k, w, bitmatrixDevice, j, dataDevice, codingDevice, (psize/round) * w, (psize/round));
 			
 		// copy coding back to main memory
 		cudaDeviceSynchronize();
-		cudaMemcpy(codingTemp, codingDevice, m * w * (psize/round) * sizeof(long), cudaMemcpyDeviceToHost);
-		extendCodingDevice(codingTemp, coding, i, m, psize, (psize/round), w);
-		
+		cudaMemcpy(coding, codingDevice, m * w * (psize/round) * sizeof(long), cudaMemcpyDeviceToHost);
+		//extendCodingDevice(codingTemp, coding, i, m, psize, (psize/round), w);
+
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
 	}
     printf("Encoding complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
-    
+
+    // Status after coding
     for(i = 0; i < k; i++){
 		for(j = 0; j < w * psize; j++)
-			printf("%ld ", *(data + i*w*psize + j));
+			printf("%02x ", (unsigned char)*(data + i*w*psize + j));
 		printf("\n");
 	}
 	printf("\n");
 	
 	for(i = 0; i < m; i++){
 		for(j = 0; j < w * psize; j++)
-			printf("%ld ", *(coding + i*w*psize + j));
+			printf("%02x ", (unsigned char)*(coding + i*w*psize + j));
+		printf("\n");
+	}
+	printf("\n");
+    
+    // Erasing random m devices
+    int random[m+1];
+    bool flag;
+    for(i = 0; i < m;) {
+        r = MOA_Random_W(w, 1) % (k + m);
+        flag = true;
+        for (j = 0; j < m; j++)
+            if (r == random[j]) flag = false;
+        if (flag) {
+            random[i] = r;
+            i++;
+        }
+    }
+    random[i] = -1;
+    for(i = 0; i < m; i++) {
+        if (random[i] < k)
+            bzero((data + random[i] * w * psize), w*psize * sizeof(long));
+        else bzero((coding + (random[i] - k) * w * psize), w*psize * sizeof(long));
+    }
+    printf("Erased %d random devices\n", m);
+       
+    for(i = 0; i < k; i++){
+		for(j = 0; j < w * psize; j++)
+			printf("%02x ", (unsigned char)*(data + i*w*psize + j));
+		printf("\n");
+	}
+	printf("\n");
+	
+	for(i = 0; i < m; i++){
+		for(j = 0; j < w * psize; j++)
+			printf("%02x ", (unsigned char)*(coding + i*w*psize + j));
+		printf("\n");
+	}
+	printf("\n");
+	
+	char **data2, **coding2;
+	
+	data2 = talloc(char *, k);
+	for (i = 0; i < k; i++) {
+		data2[i] = talloc(char, psize*w);
+	}
+
+	coding2 = talloc(char *, m);
+	for (i = 0; i < m; i++) {
+		coding2[i] = talloc(char, psize*w);
+	}
+	
+	for(i = 0; i < k; i++){
+		for(j = 0; j < w * psize; j++)
+			data2[i][j] = (char)*(data + i*w*psize + j);
+	}
+	
+	for(i = 0; i < m; i++){
+		for(j = 0; j < w * psize; j++)
+			coding2[i][j] = (char)*(coding + i*w*psize + j);
+	}
+	
+	start = clock();
+	jerasure_bitmatrix_decode(k, m, w, bitmatrix, 0, random, data2, coding2, w*psize, psize);
+	printf("Devices recovered, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+	
+	for(i = 0; i < k; i++){
+		for(j = 0; j < w * psize; j++)
+			printf("%02x ", (unsigned char)data2[i][j]);
+		printf("\n");
+	}
+	printf("\n");
+	
+	for(i = 0; i < m; i++){
+		for(j = 0; j < w * psize; j++)
+			printf("%02x ", (unsigned char)coding2[i][j]);
 		printf("\n");
 	}
 	printf("\n");
