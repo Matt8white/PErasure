@@ -183,6 +183,7 @@ int main(int argc, char **argv){
 			gmpe<<<1024, 1024>>>(k, w, bitmatrixDevice, j, dataDevice, codingDevice, (psize/round) * w, (psize/round));
 			
 		// copy coding back to main memory
+		cudaDeviceSynchronize();
 		printf("Encoding complete, time elapsed: %.8fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
 
 		cudaMemcpy(codingTemp, codingDevice, m * w * (psize/round) * sizeof(long), cudaMemcpyDeviceToHost);
@@ -191,8 +192,7 @@ int main(int argc, char **argv){
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
 	}
-    //printf("Encoding complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
-
+    
     ////Status after coding
     //for(i = 0; i < k; i++){
 		//for(j = 0; j < w * psize; j++)
