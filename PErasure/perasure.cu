@@ -148,7 +148,7 @@ int main(int argc, char **argv){
     size_t free, total;
     cudaMemGetInfo(&free, &total);
     
-    round = ceil((float)(psize * w * (k + m)) / free);
+    round = ceil((float)(psize * w * (k + m) * sizeof(long)) / free);
 
     printf("Free mem: %lu\n", free);
     
@@ -183,105 +183,105 @@ int main(int argc, char **argv){
 			gmpe<<<1024, 1024>>>(k, w, bitmatrixDevice, j, dataDevice, codingDevice, (psize/round) * w, (psize/round));
 			
 		// copy coding back to main memory
-		cudaDeviceSynchronize();
-		printf("Encoding complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
-		cudaMemcpy(coding, codingDevice, m * w * (psize/round) * sizeof(long), cudaMemcpyDeviceToHost);
-		//extendCodingDevice(codingTemp, coding, i, m, psize, (psize/round), w);
+		printf("Encoding complete, time elapsed: %.8fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+
+		cudaMemcpy(codingTemp, codingDevice, m * w * (psize/round) * sizeof(long), cudaMemcpyDeviceToHost);
+		extendCodingDevice(codingTemp, coding, i, m, psize, (psize/round), w);
 
 		cudaFree(dataDevice);
 		cudaFree(codingDevice);
 	}
     //printf("Encoding complete, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
 
-    //Status after coding
-    for(i = 0; i < k; i++){
-		for(j = 0; j < w * psize; j++)
-			printf("%02x ", (unsigned char)*(data + i*w*psize + j));
-		printf("\n");
-	}
-	printf("\n");
+    ////Status after coding
+    //for(i = 0; i < k; i++){
+		//for(j = 0; j < w * psize; j++)
+			//printf("%02x ", (unsigned char)*(data + i*w*psize + j));
+		//printf("\n");
+	//}
+	//printf("\n");
 	
-	for(i = 0; i < m; i++){
-		for(j = 0; j < w * psize; j++)
-			printf("%02x ", (unsigned char)*(coding + i*w*psize + j));
-		printf("\n");
-	}
-	printf("\n");
+	//for(i = 0; i < m; i++){
+		//for(j = 0; j < w * psize; j++)
+			//printf("%02x ", (unsigned char)*(coding + i*w*psize + j));
+		//printf("\n");
+	//}
+	//printf("\n");
     
-    // Erasing random m devices
-    int random[m+1];
-    bool flag;
-    for(i = 0; i < m;) {
-        r = MOA_Random_W(w, 1) % (k + m);
-        flag = true;
-        for (j = 0; j < m; j++)
-            if (r == random[j]) flag = false;
-        if (flag) {
-            random[i] = r;
-            i++;
-        }
-    }
-    random[i] = -1;
-    for(i = 0; i < m; i++) {
-        if (random[i] < k)
-            bzero((data + random[i] * w * psize), w*psize * sizeof(long));
-        else bzero((coding + (random[i] - k) * w * psize), w*psize * sizeof(long));
-    }
-    printf("Erased %d random devices\n", m);
+    //// Erasing random m devices
+    //int random[m+1];
+    //bool flag;
+    //for(i = 0; i < m;) {
+        //r = MOA_Random_W(w, 1) % (k + m);
+        //flag = true;
+        //for (j = 0; j < m; j++)
+            //if (r == random[j]) flag = false;
+        //if (flag) {
+            //random[i] = r;
+            //i++;
+        //}
+    //}
+    //random[i] = -1;
+    //for(i = 0; i < m; i++) {
+        //if (random[i] < k)
+            //bzero((data + random[i] * w * psize), w*psize * sizeof(long));
+        //else bzero((coding + (random[i] - k) * w * psize), w*psize * sizeof(long));
+    //}
+    //printf("Erased %d random devices\n", m);
        
-    for(i = 0; i < k; i++){
-		for(j = 0; j < w * psize; j++)
-			printf("%02x ", (unsigned char)*(data + i*w*psize + j));
-		printf("\n");
-	}
-	printf("\n");
+    //for(i = 0; i < k; i++){
+		//for(j = 0; j < w * psize; j++)
+			//printf("%02x ", (unsigned char)*(data + i*w*psize + j));
+		//printf("\n");
+	//}
+	//printf("\n");
 	
-	for(i = 0; i < m; i++){
-		for(j = 0; j < w * psize; j++)
-			printf("%02x ", (unsigned char)*(coding + i*w*psize + j));
-		printf("\n");
-	}
-	printf("\n");
+	//for(i = 0; i < m; i++){
+		//for(j = 0; j < w * psize; j++)
+			//printf("%02x ", (unsigned char)*(coding + i*w*psize + j));
+		//printf("\n");
+	//}
+	//printf("\n");
 	
-	char **data2, **coding2;
+	//char **data2, **coding2;
 	
-	data2 = talloc(char *, k);
-	for (i = 0; i < k; i++) {
-		data2[i] = talloc(char, psize*w);
-	}
+	//data2 = talloc(char *, k);
+	//for (i = 0; i < k; i++) {
+		//data2[i] = talloc(char, psize*w);
+	//}
 
-	coding2 = talloc(char *, m);
-	for (i = 0; i < m; i++) {
-		coding2[i] = talloc(char, psize*w);
-	}
+	//coding2 = talloc(char *, m);
+	//for (i = 0; i < m; i++) {
+		//coding2[i] = talloc(char, psize*w);
+	//}
 	
-	for(i = 0; i < k; i++){
-		for(j = 0; j < w * psize; j++)
-			data2[i][j] = (char)*(data + i*w*psize + j);
-	}
+	//for(i = 0; i < k; i++){
+		//for(j = 0; j < w * psize; j++)
+			//data2[i][j] = (char)*(data + i*w*psize + j);
+	//}
 	
-	for(i = 0; i < m; i++){
-		for(j = 0; j < w * psize; j++)
-			coding2[i][j] = (char)*(coding + i*w*psize + j);
-	}
+	//for(i = 0; i < m; i++){
+		//for(j = 0; j < w * psize; j++)
+			//coding2[i][j] = (char)*(coding + i*w*psize + j);
+	//}
 	
-	start = clock();
-	jerasure_bitmatrix_decode(k, m, w, bitmatrix, 0, random, data2, coding2, w*psize, psize);
-	printf("Devices recovered, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
+	//start = clock();
+	//jerasure_bitmatrix_decode(k, m, w, bitmatrix, 0, random, data2, coding2, w*psize, psize);
+	//printf("Devices recovered, time elapsed: %.4fs\n", (clock() - (float)start) / CLOCKS_PER_SEC);
 	
-	for(i = 0; i < k; i++){
-		for(j = 0; j < w * psize; j++)
-			printf("%02x ", (unsigned char)data2[i][j]);
-		printf("\n");
-	}
-	printf("\n");
+	//for(i = 0; i < k; i++){
+		//for(j = 0; j < w * psize; j++)
+			//printf("%02x ", (unsigned char)data2[i][j]);
+		//printf("\n");
+	//}
+	//printf("\n");
 	
-	for(i = 0; i < m; i++){
-		for(j = 0; j < w * psize; j++)
-			printf("%02x ", (unsigned char)coding2[i][j]);
-		printf("\n");
-	}
-	printf("\n");
+	//for(i = 0; i < m; i++){
+		//for(j = 0; j < w * psize; j++)
+			//printf("%02x ", (unsigned char)coding2[i][j]);
+		//printf("\n");
+	//}
+	//printf("\n");
 
     return 0;
 }
