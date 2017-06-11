@@ -1,0 +1,181 @@
+<HTML><TITLE>Toy example of erasure coding</TITLE>
+<h3>Toy example of erasure coding</h3>
+<hr>
+Last (m * w) rows of the Generator Matrix: (G^T):
+<pre>
+111 001 101
+100 101 111
+110 010 011
+
+001 111 010
+101 100 011
+010 110 101
+
+101 010 111
+111 011 100
+011 101 110
+
+010 101 001
+011 111 101
+101 011 010
+</pre><hr>
+Encoding Complete - Here is the state of the system
+
+<p>
+<center><table border=3 cellpadding=3><tr><td></td>
+<td align=center>D0</td>
+<td align=center>D1</td>
+<td align=center>D2</td>
+</tr>
+<td align=right><pre>Packet 0
+Packet 1
+Packet 2
+</pre></td>
+<td><pre>a93b44dc 3b7be488
+516906b9 83659977
+e4e7f8a3 7a884b98
+</td>
+<td><pre>39523dc4 8eb0ad4e
+33561a07 47fdddfc
+d5e71312 bd9833f5
+</td>
+<td><pre>845c0b97 92bf1b7f
+fce809fa 862d61d1
+d71df437 1d90087a
+</td>
+</tr></table></center>
+<p>
+<center><table border=3 cellpadding=3><tr><td></td>
+<td align=center>C0</td>
+<td align=center>C1</td>
+<td align=center>C2</td>
+<td align=center>C3</td>
+</tr>
+<td align=right><pre>Packet 0
+Packet 1
+Packet 2
+</pre></td>
+<td><pre>9a135674 f0211697
+ea279c50 015108e7
+e0f1a5af 645ec9a8
+</td>
+<td><pre>c7ecc588 8870690e
+5f7b7c76 54fe6bf5
+082cdeda c507fac0
+</td>
+<td><pre>d1235022 0f0c0038
+7e58b844 aa4cc311
+218fd2a1 de5736fa
+</td>
+<td><pre>6ac1dc58 addd0fb6
+392c356b 021782ad
+5785bc90 3dbb20c8
+</td>
+</tr></table></center>
+<hr>
+Erased 4 random devices: C0 D0 D2 C2. Here is the state of the system:
+<p>
+<center><table border=3 cellpadding=3><tr><td></td>
+<td align=center>D0</td>
+<td align=center>D1</td>
+<td align=center>D2</td>
+</tr>
+<td align=right><pre>Packet 0
+Packet 1
+Packet 2
+</pre></td>
+<td><pre>00000000 00000000
+00000000 00000000
+00000000 00000000
+</td>
+<td><pre>39523dc4 8eb0ad4e
+33561a07 47fdddfc
+d5e71312 bd9833f5
+</td>
+<td><pre>00000000 00000000
+00000000 00000000
+00000000 00000000
+</td>
+</tr></table></center>
+<p>
+<center><table border=3 cellpadding=3><tr><td></td>
+<td align=center>C0</td>
+<td align=center>C1</td>
+<td align=center>C2</td>
+<td align=center>C3</td>
+</tr>
+<td align=right><pre>Packet 0
+Packet 1
+Packet 2
+</pre></td>
+<td><pre>00000000 00000000
+00000000 00000000
+00000000 00000000
+</td>
+<td><pre>c7ecc588 8870690e
+5f7b7c76 54fe6bf5
+082cdeda c507fac0
+</td>
+<td><pre>00000000 00000000
+00000000 00000000
+00000000 00000000
+</td>
+<td><pre>6ac1dc58 addd0fb6
+392c356b 021782ad
+5785bc90 3dbb20c8
+</td>
+</tr></table></center>
+<hr>
+Here is the state of the system after decoding:
+
+<p>
+<center><table border=3 cellpadding=3><tr><td></td>
+<td align=center>D0</td>
+<td align=center>D1</td>
+<td align=center>D2</td>
+</tr>
+<td align=right><pre>Packet 0
+Packet 1
+Packet 2
+</pre></td>
+<td><pre>a93b44dc 3b7be488
+516906b9 83659977
+e4e7f8a3 7a884b98
+</td>
+<td><pre>39523dc4 8eb0ad4e
+33561a07 47fdddfc
+d5e71312 bd9833f5
+</td>
+<td><pre>845c0b97 92bf1b7f
+fce809fa 862d61d1
+d71df437 1d90087a
+</td>
+</tr></table></center>
+<p>
+<center><table border=3 cellpadding=3><tr><td></td>
+<td align=center>C0</td>
+<td align=center>C1</td>
+<td align=center>C2</td>
+<td align=center>C3</td>
+</tr>
+<td align=right><pre>Packet 0
+Packet 1
+Packet 2
+</pre></td>
+<td><pre>9a135674 f0211697
+ea279c50 015108e7
+e0f1a5af 645ec9a8
+</td>
+<td><pre>c7ecc588 8870690e
+5f7b7c76 54fe6bf5
+082cdeda c507fac0
+</td>
+<td><pre>d1235022 0f0c0038
+7e58b844 aa4cc311
+218fd2a1 de5736fa
+</td>
+<td><pre>6ac1dc58 addd0fb6
+392c356b 021782ad
+5785bc90 3dbb20c8
+</td>
+</tr></table></center>
